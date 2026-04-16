@@ -1,6 +1,5 @@
 package com.example.myapplication.ui
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,15 +41,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.bumptech.glide.integration.compose.ExperimentalGlideComposeApi
+import com.bumptech.glide.integration.compose.GlideImage
+import com.bumptech.glide.integration.compose.placeholder
 import com.example.myapplication.domain.BadgeCounts
 import com.example.myapplication.domain.User
 import com.example.myapplication.domain.sampleUsers
@@ -235,6 +238,7 @@ private fun BadgeItem(count: Int, color: Color) {
     }
 }
 
+@OptIn(ExperimentalGlideComposeApi::class)
 @Composable
 fun UserListItem(user: User, onClick: () -> Unit) {
     Card(
@@ -249,20 +253,29 @@ fun UserListItem(user: User, onClick: () -> Unit) {
                 .fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Profile Image Placeholder
-            Box(
+            GlideImage(
+                model = user.profile_image,
+                contentDescription = "${user.display_name}'s profile image",
                 modifier = Modifier
                     .size(48.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = user.display_name.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+                failure = placeholder {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = user.display_name.take(1).uppercase(),
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -280,7 +293,7 @@ fun UserListItem(user: User, onClick: () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalGlideComposeApi::class)
 @Composable
 fun UserDetailsScreen(user: User, onBack: () -> Unit) {
     Scaffold(
@@ -308,19 +321,29 @@ fun UserDetailsScreen(user: User, onBack: () -> Unit) {
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
+            GlideImage(
+                model = user.profile_image,
+                contentDescription = "${user.display_name}'s profile image",
                 modifier = Modifier
                     .size(120.dp)
-                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = user.display_name.take(1).uppercase(),
-                    style = MaterialTheme.typography.displayLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop,
+                failure = placeholder {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = user.display_name.take(1).uppercase(),
+                            style = MaterialTheme.typography.displayLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -352,8 +375,10 @@ fun UserDetailsScreen(user: User, onBack: () -> Unit) {
                     textAlign = TextAlign.Start,
                     fontWeight = FontWeight.Bold
                 )
+                // Assuming user.creation_date is already formatted as a String or handled in ViewModel
+                // If it's a Long, it should be formatted before passing to Text()
                 Text(
-                    text = user.creation_date,
+                    text = user.creation_date.toString(),
                     style = MaterialTheme.typography.titleLarge,
                     textAlign = TextAlign.Start,
                     fontWeight = FontWeight.Bold
