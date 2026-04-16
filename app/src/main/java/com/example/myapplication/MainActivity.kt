@@ -7,13 +7,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.tooling.preview.Preview
-import com.example.myapplication.domain.sampleUsers
-import com.example.myapplication.ui.StackExchangeUsers
-import com.example.myapplication.ui.UserDetailsScreen
 import com.example.myapplication.ui.MainViewModel
+import com.example.myapplication.ui.StackExchangeUsers
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 

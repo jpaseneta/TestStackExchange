@@ -1,5 +1,6 @@
 package com.example.myapplication.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -42,8 +44,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -58,13 +62,13 @@ fun StackExchangeUsers(viewModel: MainViewModel) {
     val navController = rememberNavController()
     NavHost(navController = navController, startDestination = "userList") {
         composable("userList") {
-            UserListScreen(viewModel = viewModel, onBookClick = { userId ->
+            UserListScreen(viewModel = viewModel, onUserClicked = { userId ->
                 navController.navigate("userDetails/$userId")
             })
         }
         composable("userDetails/{userId}") { backStackEntry ->
             val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull()
-            sampleUsers.find { it.user_id == userId }?.run {
+            viewModel.getUserFromList(userId)?.run {
                 UserDetailsScreen(user = this, onBack = { navController.popBackStack() })
             }
         }
@@ -74,11 +78,12 @@ fun StackExchangeUsers(viewModel: MainViewModel) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserListScreen(
-    viewModel: MainViewModel, onBookClick: (Int) -> Unit
+    viewModel: MainViewModel, onUserClicked: (Int) -> Unit
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val filteredBooks by viewModel.filteredUsers.collectAsState()
+    val filteredUsers by viewModel.filteredUsers.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
+    val error by viewModel.error.collectAsState()
 
     Scaffold(
         topBar = {
@@ -105,15 +110,10 @@ fun UserListScreen(
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.onSearchQueryChange(it) },
-                    label = { Text("Search user name") },
+                    label = { Text("Filter by username") },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
-                Button(
-                    onClick = { viewModel.filterBooks() }, modifier = Modifier.height(56.dp)
-                ) {
-                    Text("Filter")
-                }
             }
 
             PullToRefreshBox(
@@ -121,17 +121,59 @@ fun UserListScreen(
                 onRefresh = { viewModel.refresh() },
                 modifier = Modifier.fillMaxSize()
             ) {
-                LazyColumn(
-                    state = rememberLazyListState(),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(filteredBooks) { book ->
-                        UserListItem(user = book, onClick = { onBookClick(book.user_id) })
+                if (error != null && filteredUsers.isEmpty()) {
+                    ErrorMessage(
+                        message = error ?: "Unknown error",
+                        onRetry = { viewModel.refresh() }
+                    )
+                } else {
+                    LazyColumn(
+                        state = rememberLazyListState(),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredUsers) { user ->
+                            UserListItem(user = user, onClick = { onUserClicked(user.user_id) })
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ErrorMessage(message: String, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Default.Warning,
+            contentDescription = null,
+            modifier = Modifier.size(64.dp),
+            tint = MaterialTheme.colorScheme.error
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Network Error",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onRetry) {
+            Text("Retry")
         }
     }
 }
@@ -153,7 +195,7 @@ fun ReputationBadges(reputation: Int, badges: BadgeCounts, modifier: Modifier = 
             fontWeight = FontWeight.Bold,
             color = Color(0xFF525960) // Mimic SO reputation text color
         )
-        
+
         // Badges Row
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -244,14 +286,16 @@ fun UserDetailsScreen(user: User, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "User Details", fontWeight = FontWeight.Bold) }, navigationIcon = {
+                title = { Text(text = "User Details", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
                         )
                     }
-                }, colors = TopAppBarDefaults.topAppBarColors(
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
@@ -277,7 +321,7 @@ fun UserDetailsScreen(user: User, onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
@@ -297,15 +341,27 @@ fun UserDetailsScreen(user: User, onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Text(
-                text = "Creation Date",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Start)
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Creation Date: ",
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Start,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = user.creation_date,
+                    style = MaterialTheme.typography.titleLarge,
+                    textAlign = TextAlign.Start,
+                    fontWeight = FontWeight.Bold
+                )
+            }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "This is a sample user profile for ${user.display_name} on Stack Overflow.",
+                text = "Profile details page for ${user.display_name} on Stack Overflow.",
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.align(Alignment.Start)
             )
@@ -315,9 +371,20 @@ fun UserDetailsScreen(user: User, onBack: () -> Unit) {
 
 @Preview(showBackground = true)
 @Composable
+fun ErrorMessagePreview() {
+    MaterialTheme {
+        ErrorMessage(message = "Unable to connect to the server. Please check your internet connection and try again.", onRetry = {})
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
 fun ReputationBadgesPreview() {
     MaterialTheme {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             ReputationBadges(
                 reputation = 245981,
                 badges = BadgeCounts(gold = 12, silver = 145, bronze = 562)
@@ -339,9 +406,9 @@ fun ReputationBadgesPreview() {
 fun UserDetailsPreview() {
     MaterialTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            val book = sampleUsers.find { it.user_id == 1 }
-            if (book != null) {
-                UserDetailsScreen(user = book, onBack = {  })
+            val user = sampleUsers.find { it.user_id == 1 }
+            if (user != null) {
+                UserDetailsScreen(user = user, onBack = { })
             }
         }
     }
