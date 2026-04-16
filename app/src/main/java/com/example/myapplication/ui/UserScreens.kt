@@ -84,9 +84,7 @@ fun UserListScreen(
     viewModel: MainViewModel, onUserClicked: (Int) -> Unit
 ) {
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val filteredUsers by viewModel.filteredUsers.collectAsState()
-    val isRefreshing by viewModel.isRefreshing.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
 
     Scaffold(
         topBar = {
@@ -120,25 +118,32 @@ fun UserListScreen(
             }
 
             PullToRefreshBox(
-                isRefreshing = isRefreshing,
+                isRefreshing = uiState.isRefreshing,
                 onRefresh = { viewModel.refresh() },
                 modifier = Modifier.fillMaxSize()
             ) {
-                if (error != null && filteredUsers.isEmpty()) {
-                    ErrorMessage(
-                        message = error ?: "Unknown error",
-                        onRetry = { viewModel.refresh() }
-                    )
-                } else {
-                    LazyColumn(
-                        state = rememberLazyListState(),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(filteredUsers) { user ->
-                            UserListItem(user = user, onClick = { onUserClicked(user.user_id) })
+                when (uiState) {
+                    is UIState.LoadingState -> {}
+                    is UIState.SuccessState -> {
+                        val users = (uiState as UIState.SuccessState).users
+                        LazyColumn(
+                            state = rememberLazyListState(),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(users) { user ->
+                                UserListItem(user = user, onClick = { onUserClicked(user.user_id) })
+                            }
                         }
+                    }
+
+                    is UIState.ErrorState -> {
+                        val error = (uiState as UIState.ErrorState).message
+                        ErrorMessage(
+                            message = error,
+                            onRetry = { viewModel.refresh() }
+                        )
                     }
                 }
             }
@@ -398,7 +403,9 @@ fun UserDetailsScreen(user: User, onBack: () -> Unit) {
 @Composable
 fun ErrorMessagePreview() {
     MaterialTheme {
-        ErrorMessage(message = "Unable to connect to the server. Please check your internet connection and try again.", onRetry = {})
+        ErrorMessage(
+            message = "Unable to connect to the server. Please check your internet connection and try again.",
+            onRetry = {})
     }
 }
 

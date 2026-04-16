@@ -10,10 +10,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalDateTime.ofInstant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 @HiltViewModel
@@ -22,17 +18,9 @@ class MainViewModel @Inject constructor(
 ) : ViewModel() {
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
     private val _allUsers = MutableStateFlow<List<User>>(emptyList())
-
-    private val _filteredUsers = MutableStateFlow<List<User>>(emptyList())
-    val filteredUsers: StateFlow<List<User>> = _filteredUsers.asStateFlow()
-
-    private val _isRefreshing = MutableStateFlow(false)
-    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
-
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _uiState = MutableStateFlow<UIState>(UIState.LoadingState)
+    val uiState: StateFlow<UIState> = _uiState.asStateFlow()
 
     init {
         refresh()
@@ -43,32 +31,29 @@ class MainViewModel @Inject constructor(
         filterUsers()
     }
 
-    fun filterUsers() {
+    private fun filterUsers() {
         val query = _searchQuery.value
-        _filteredUsers.update {
-            if (query.isBlank()) {
-                _allUsers.value
-            } else {
-                _allUsers.value.filter {
-                    it.display_name.contains(query, ignoreCase = true)
-                }
+        val userList = if (query.isBlank()) {
+            _allUsers.value
+        } else {
+            _allUsers.value.filter {
+                it.display_name.contains(query, ignoreCase = true)
             }
         }
+        _uiState.update { UIState.SuccessState(userList) }
     }
 
     fun refresh() {
         viewModelScope.launch {
-            _isRefreshing.value = true
-            _error.value = null
+            _searchQuery.value = "" //resets search query
+            _uiState.update { UIState.LoadingState }
             try {
                 val users = userRepository.getUsers()
                 _allUsers.value = users
-                filterUsers()
+                _uiState.update { UIState.SuccessState(users) }
             } catch (e: Exception) {
-                _error.value = e.message ?: "An unexpected error occurred"
+                _uiState.update { UIState.ErrorState(e.message ?: "An unexpected error occurred") }
                 e.printStackTrace()
-            } finally {
-                _isRefreshing.value = false
             }
         }
     }
